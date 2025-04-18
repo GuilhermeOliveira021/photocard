@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Álbum de Photocards</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f0f0f0;
+      padding: 20px;
+      text-align: center;
+    }
+    input, button {
+      margin: 10px;
+      padding: 10px;
+    }
+    .card {
+      display: inline-block;
+      margin: 10px;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      background: white;
+      padding: 10px;
+      width: 180px;
+    }
+    .card img {
+      max-width: 160px;
+      border-radius: 8px;
+    }
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h1>Meu Álbum de Photocards</h1>
+  <input type="file" id="photo" accept="image/*" />
+  <input type="text" id="caption" placeholder="Legenda" />
+  <button onclick="upload()">Enviar</button>
+
+  <div class="grid" id="gallery"></div>
+
+  <script>
+    const SUPABASE_URL = "https://nzmdkwkkucojkzaxakcz.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im56bWRrd2trdWNvamt6YXhha2N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ5NDA5NjcsImV4cCI6MjA2MDUxNjk2N30.CkJ6qMehuPUseDnq0LQCKSBZ16Nxa12yZEjiJqUgmwA";
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    async function upload() {
+      const file = document.getElementById('photo').files[0];
+      const caption = document.getElementById('caption').value;
+      if (!file) return alert("Escolha uma imagem");
+
+      const filename = Date.now() + "_" + file.name;
+
+      let { error: uploadError } = await supabase.storage
+        .from('photocards')
+        .upload(filename, file);
+
+      if (uploadError) {
+        alert("Erro ao enviar imagem: " + uploadError.message);
+        return;
+      }
+
+      const { data: publicUrlData } = supabase
+        .storage
+        .from('photocards')
+        .getPublicUrl(filename);
+
+      const { error: dbError } = await supabase
+        .from('photos')
+        .insert([{ url: publicUrlData.publicUrl, caption }]);
+
+      if (dbError) {
+        alert("Erro ao salvar legenda: " + dbError.message);
+        return;
+      }
+
+      document.getElementById('caption').value = '';
+      document.getElementById('photo').value = '';
+      loadPhotos();
+    }
+
+    async function loadPhotos() {
+      const { data, error } = await supabase
+        .from('photos')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (error) return console.log("Erro ao carregar fotos:", error);
+
+      const gallery = document.getElementById('gallery');
+      gallery.innerHTML = '';
+      data.forEach(photo => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <img src="${photo.url}" />
+          <p>${photo.caption || ''}</p>
+        `;
+        gallery.appendChild(card);
+      });
+    }
+
+    loadPhotos();
+  </script>
+</body>
+</html>
